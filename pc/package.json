@@ -1,0 +1,27 @@
+{
+  "name": "casnt",
+  "productName": "Casnt",
+  "version": "0.1.0",
+  "description": "Cast your Meta Quest 3 to your PC.",
+  "author": "DarkerDawnFR",
+  "license": "UNLICENSED",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "test": "node --test",
+    "dist": "electron-builder --win nsis portable --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.darkerdawnfr.casnt",
+    "productName": "Casnt",
+    "files": ["src/**/*", "build/icon.png", "package.json"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": { "icon": "build/icon.png", "target": ["nsis", "portable"] },
+    "nsis": { "oneClick": false, "allowToChangeInstallationDirectory": true, "createDesktopShortcut": true, "shortcutName": "Casnt" },
+    "portable": { "artifactName": "Casnt-${version}-portable.exe" }
+  }
+}

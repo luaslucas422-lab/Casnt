@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Casnt logo: gold "C" with cast waves and a thick black outline -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="256" android:viewportHeight="256">
+    <path android:pathData="M70,10h116a60,60 0,0 1,60 60v116a60,60 0,0 1,-60 60h-116a60,60 0,0 1,-60 -60v-116a60,60 0,0 1,60 -60z"
+        android:fillColor="#2A1E0A" android:strokeColor="#000000" android:strokeWidth="12" />
+    <path android:pathData="M160,68 A72,72 0,1 0,160 188" android:strokeColor="#000000" android:strokeWidth="62" android:strokeLineCap="round" />
+    <path android:pathData="M160,68 A72,72 0,1 0,160 188" android:strokeColor="#F5B82E" android:strokeWidth="40" android:strokeLineCap="round" />
+    <path android:pathData="M150,112 A22,22 0,0 1,150 144" android:strokeColor="#000000" android:strokeWidth="20" android:strokeLineCap="round" />
+    <path android:pathData="M150,112 A22,22 0,0 1,150 144" android:strokeColor="#FFD65A" android:strokeWidth="9" android:strokeLineCap="round" />
+    <path android:pathData="M168,96 A44,44 0,0 1,168 160" android:strokeColor="#000000" android:strokeWidth="20" android:strokeLineCap="round" />
+    <path android:pathData="M168,96 A44,44 0,0 1,168 160" android:strokeColor="#FFD65A" android:strokeWidth="9" android:strokeLineCap="round" />
+    <path android:pathData="M188,80 A66,66 0,0 1,188 176" android:strokeColor="#000000" android:strokeWidth="20" android:strokeLineCap="round" />
+    <path android:pathData="M188,80 A66,66 0,0 1,188 176" android:strokeColor="#FFD65A" android:strokeWidth="9" android:strokeLineCap="round" />
+    <path android:pathData="M138,116a12,12 0,1 1,0 24a12,12 0,1 1,0 -24z" android:fillColor="#FFD65A" android:strokeColor="#000000" android:strokeWidth="6" />
+</vector>
