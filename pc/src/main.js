@@ -25,7 +25,7 @@ let recording = null;      // { path, stream }
 let usb = { connected: false, serials: [], problem: '' };
 let updateState = { state: 'idle' };
 
-if (!app.requestSingleInstanceLock()) { app.quit(); }
+if (!app.requestSingleInstanceLock()) { app.exit(0); } // Casnt is already running: the other copy gets focused
 app.on('second-instance', () => showMain());
 app.setAppUserModelId('com.calmchasm.casnt');
 
@@ -196,6 +196,15 @@ async function updateQuestOverUsb() {
 
 // ---------------- TikTok LIVE Studio check ----------------
 function checkTikTokStudio() {
+  // 1) the Windows "installed apps" list
+  try {
+    for (const hive of ['HKCU', 'HKLM']) {
+      const out = require('child_process').execFileSync('reg', ['query', `${hive}\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall`, '/s', '/f', 'TikTok LIVE Studio', '/d'],
+        { windowsHide: true, timeout: 5000, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+      if (/TikTok LIVE Studio/i.test(out)) return { installed: true, path: hive };
+    }
+  } catch (_) { /* not found or no reg.exe */ }
+  // 2) the usual install folders
   const roots = [process.env.LOCALAPPDATA, process.env.ProgramFiles, process.env['ProgramFiles(x86)'], process.env.APPDATA].filter(Boolean);
   const names = ['TikTok LIVE Studio', 'TikTokLIVEStudio', path.join('Programs', 'TikTok LIVE Studio')];
   for (const r of roots) for (const n of names) {

@@ -333,6 +333,7 @@ api.on('cast-request-cancelled', () => $('request').classList.remove('show'));
 // =====================================================================  cast viewer
 const canvas = $('screen');
 const ctx = canvas.getContext('2d');
+let decoderErrors = [], forceSoftware = false;
 let decoder = null, codec = null, needKey = true, audio = null, latest = null, full = false;
 const questAudio = { game: true, mic: true };
 
@@ -374,10 +375,19 @@ function makeDecoder() {
       if (latest) latest.close();
       latest = frame;
     },
-    error(e) { console.warn('decoder error', e); needKey = true; makeDecoder(); },
+    error(e) {
+      console.warn('decoder error', e);
+      // back off if it keeps failing, and try the other decoder mode
+      decoderErrors = decoderErrors.filter((t) => Date.now() - t < 5000).concat(Date.now());
+      if (decoderErrors.length >= 4) { forceSoftware = !forceSoftware; decoderErrors = []; toast('Video decoder had trouble, switching decoder mode…'); }
+      needKey = true;
+      setTimeout(() => { if (codec) makeDecoder(); }, 300);
+    },
   });
   // No "description" => Annex B, which is what the Quest sends.
-  decoder.configure({ codec, optimizeForLatency: true, hardwareAcceleration: S.hardwareDecoding ? 'prefer-hardware' : 'no-preference' });
+  let hw = S.hardwareDecoding ? 'prefer-hardware' : 'no-preference';
+  if (forceSoftware) hw = S.hardwareDecoding ? 'no-preference' : 'prefer-software';
+  decoder.configure({ codec, optimizeForLatency: true, hardwareAcceleration: hw });
   needKey = true;
   api.requestKeyFrame();
 }

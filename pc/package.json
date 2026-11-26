@@ -1,7 +1,7 @@
 {
   "name": "casnt",
   "productName": "Casnt",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Cast your Meta Quest 3 to your PC.",
   "author": "calm.chasm",
   "license": "UNLICENSED",
@@ -39,7 +39,9 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "shortcutName": "Casnt",
-      "artifactName": "Casnt-Setup-${version}.exe"
+      "artifactName": "Casnt-Setup-${version}.exe",
+      "include": "build/installer.nsh",
+      "perMachine": true
     },
     "portable": {
       "artifactName": "Casnt-${version}-portable.exe"
