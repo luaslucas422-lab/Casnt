@@ -11,7 +11,10 @@ function greeting(name) {
   const part = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
   return `${part}, ${name}`;
 }
-function get(key) { const [a, b] = key.split('.'); return b ? S[a][b] : S[a]; }
+function get(key) {
+  if (key === 'theme') return S.cartoonUi ? 'gold' : S.plainTheme === 'light' ? 'white' : 'dark';
+  const [a, b] = key.split('.'); return b ? S[a][b] : S[a];
+}
 async function set(key, value) {
   S = await api.setSetting(key, value);
   state.settings = S;
@@ -107,8 +110,7 @@ api.on('paired', (d) => toast(`Paired with ${d.name}'s ${d.model}${d.via === 'us
 const SECTIONS = [
   { id: 'look', title: 'Look', items: [
     { key: 'showGreeting', type: 'toggle', label: 'Show greeting', sub: '"Good evening, PC name" on the home screen' },
-    { key: 'cartoonUi', type: 'toggle', label: 'Cartoony gold look', sub: 'Turn off for a clean look' },
-    { key: 'plainTheme', type: 'seg', label: 'Clean look colour', sub: 'Used when the cartoony look is off', options: [['dark', 'Dark'], ['light', 'Light']], showIf: () => !S.cartoonUi },
+    { key: 'theme', type: 'seg', label: 'Theme', sub: 'Gold is the cartoony Casnt look', options: [['gold', 'Gold'], ['dark', 'Dark'], ['white', 'White']] },
     { key: 'animations', type: 'toggle', label: 'Animations', sub: 'Bouncy buttons and pop-ins' },
     { key: 'sounds', type: 'toggle', label: 'Sound effects', sub: 'Little blips on buttons and a ding on cast requests' },
   ] },

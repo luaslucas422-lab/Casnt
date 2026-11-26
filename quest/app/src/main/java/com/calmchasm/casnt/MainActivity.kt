@@ -423,56 +423,60 @@ class MainActivity : Activity() {
         job++
         val myJob = job
         val c = begin("addpc")
-        val two = kit.row()
+        c.add(kit.heading("Add a PC", 40f))
+        c.add(kit.label("Type the 6-digit code shown in Casnt on your PC.", 19f, kit.look.muted).apply { maxWidth = dp(560) }, top = 8)
+        if (prefs.usbInstantConnect) c.add(kit.label("Or plug your Quest into the PC with USB to skip the code.", 15f, kit.look.faint).apply { maxWidth = dp(560) }, top = 4)
+        if (error != null) c.add(kit.label(error, 16f, 0xFFFF8A7A.toInt()).apply { maxWidth = dp(560) }, top = 10)
 
-        // left: instructions + code boxes
-        val left = kit.column()
-        left.add(kit.heading("Add a PC", 38f))
-        left.add(kit.label("Type the 6-digit code shown in Casnt on your PC.", 18f, kit.look.muted).apply { maxWidth = dp(470) }, top = 6)
-        if (prefs.usbInstantConnect) left.add(kit.label("Or plug your Quest into the PC with USB to skip the code.", 15f, kit.look.faint).apply { maxWidth = dp(470) }, top = 6)
-        if (error != null) left.add(kit.label(error, 16f, 0xFFFF8A7A.toInt()).apply { maxWidth = dp(470) }, top = 10)
-        val code = StringBuilder()
-        val boxes = kit.row()
-        val cells = (0 until 6).map {
-            kit.label("", 36f, if (kit.look.cartoon) 0xFF000000.toInt() else kit.look.text, bold = true).apply {
-                background = kit.rounded(if (kit.look.cartoon) kit.look.gold else intArrayOf(kit.look.panel), 16)
-                gravity = Gravity.CENTER
-            }
+        // A real text box, so the Quest keyboard comes up.
+        val field = EditText(this).apply {
+            hint = "000000"
+            textSize = 46f
+            typeface = kit.look.title
+            gravity = Gravity.CENTER
+            letterSpacing = 0.3f
+            setSingleLine()
+            inputType = InputType.TYPE_CLASS_NUMBER
+            imeOptions = EditorInfo.IME_ACTION_DONE
+            filters = arrayOf<android.text.InputFilter>(android.text.InputFilter.LengthFilter(6))
+            setTextColor(if (kit.look.cartoon) 0xFF000000.toInt() else kit.look.text)
+            setHintTextColor(if (kit.look.cartoon) 0x66000000 else kit.look.faint)
+            background = kit.rounded(if (kit.look.cartoon) kit.look.gold else intArrayOf(kit.look.panel), 22, if (kit.look.cartoon) 5 else 2)
+            setPadding(dp(24), dp(14), dp(24), dp(14))
         }
-        cells.forEachIndexed { i, v ->
-            boxes.add(v, dp(62), dp(80))
-            if (i < 5) boxes.add(kit.hspace(8))
-        }
-        left.add(boxes, top = 18)
-        fun refresh() { cells.forEachIndexed { i, v -> v.text = if (i < code.length) code[i].toString() else "" } }
-        two.add(left)
-        two.add(kit.hspace(36))
+        c.add(field, dp(380), top = 22)
 
-        // right: number pad
-        val pad = kit.column()
-        val keys = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("Back", "0", "⌫"))
-        keys.forEachIndexed { ri, rowKeys ->
-            val r = kit.row()
-            rowKeys.forEachIndexed { i, k ->
-                val kind = if (k.length == 1 && k[0].isDigit()) Kit.Kind.GOLD else Kit.Kind.DARK
-                r.add(kit.button(k, kind, if (k == "Back") 19f else 28f, 10, 0) {
-                    when (k) {
-                        "Back" -> showHome()
-                        "⌫" -> { if (code.isNotEmpty()) code.deleteCharAt(code.length - 1); refresh() }
-                        else -> if (code.length < 6) {
-                            code.append(k); refresh()
-                            if (code.length == 6) tryCode(code.toString())
-                        }
-                    }
-                }, dp(104))
-                if (i < 2) r.add(kit.hspace(10))
-            }
-            pad.add(r, top = if (ri == 0) 0 else 10)
+        fun submit() {
+            val code = field.text.toString().filter { it.isDigit() }
+            if (code.length == 6) tryCode(code) else field.error = "6 digits"
         }
-        two.add(pad)
-        c.add(two)
+        field.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) { if ((s?.length ?: 0) == 6) submit() }
+        })
+        field.setOnEditorActionListener { _, _, _ -> submit(); true }
+
+        val r = kit.row()
+        r.add(kit.button("Back", Kit.Kind.DARK, 22f, 12, 30) { hideKeyboard(field); showHome() })
+        r.add(kit.hspace(16))
+        r.add(kit.button("Connect", sizeSp = 22f, padV = 12, padH = 34) { submit() })
+        c.add(r, top = 20)
+        c.add(kit.button("⌨  Show keyboard", Kit.Kind.DARK, 16f, 8, 18) { showKeyboard(field) }, top = 12)
         place(c)
+        field.postDelayed({ showKeyboard(field) }, 300)
         if (prefs.usbInstantConnect) watchUsb(myJob)
+    }
+
+    private fun showKeyboard(v: View) {
+        v.requestFocus()
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.showSoftInput(v, android.view.inputmethod.InputMethodManager.SHOW_IMPLICIT)
+    }
+
+    private fun hideKeyboard(v: View) {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as android.view.inputmethod.InputMethodManager
+        imm.hideSoftInputFromWindow(v.windowToken, 0)
     }
 
     private fun tryCode(code: String) {
@@ -590,8 +594,12 @@ class MainActivity : Activity() {
         rowIn(you, "Show greeting", "\"${greeting()}\" on the home screen", kit.toggle(prefs.showGreeting) { prefs.showGreeting = it })
 
         val look = section("Look")
-        rowIn(look, "Cartoony gold look", "Turn off for a clean look", kit.toggle(prefs.cartoonUi) { prefs.cartoonUi = it; reopen() })
-        if (!prefs.cartoonUi) rowIn(look, "Clean look colour", "", seg(listOf("dark" to "Dark", "light" to "Light"), prefs.plainTheme) { prefs.plainTheme = it; reopen() })
+        val theme = if (prefs.cartoonUi) "gold" else if (prefs.plainTheme == "light") "white" else "dark"
+        rowIn(look, "Theme", "Gold is the cartoony Casnt look", seg(listOf("gold" to "Gold", "dark" to "Dark", "white" to "White"), theme) {
+            prefs.cartoonUi = it == "gold"
+            prefs.plainTheme = if (it == "white") "light" else "dark"
+            reopen()
+        })
         rowIn(look, "Animations", "Bouncy buttons and pop-ins", kit.toggle(prefs.animations) { prefs.animations = it; reopen() })
         rowIn(look, "Sound effects", "Little blips on buttons", kit.toggle(prefs.sounds) { prefs.sounds = it; reopen() })
 

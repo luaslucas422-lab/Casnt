@@ -198,3 +198,12 @@ textarea.tin { resize: vertical; }
 .action { border-color: var(--ink); }
 .action .aname { font-size: 17px; }
 body.plain .sbtn { box-shadow: none; }
+
+/* ---------- White theme fixes ---------- */
+body.theme-light h1.greet, body.theme-light .card h2, body.theme-light .wordmark { color: #b7790c; background: none; -webkit-text-fill-color: #b7790c; }
+body.theme-light .nav-btn.active, body.theme-light .btn:not(.dark):not(.red), body.theme-light .sbtn { color: #1b1408; }
+body.theme-light .settings-nav button, body.theme-light .badge.off { background: var(--bg-2); color: var(--text); border: 1px solid var(--ink); box-shadow: none; }
+body.theme-light .settings-nav button.on { background: var(--gold-2); color: #1b1408; }
+body.theme-light .tile .n, body.theme-light .fitem b, body.theme-light .devices .dname { color: #8a5a06; }
+body.plain .settings-nav button { box-shadow: none; border-width: 1px; }
+body.theme-dark .settings-nav button { background: var(--bg-2); color: var(--text); }

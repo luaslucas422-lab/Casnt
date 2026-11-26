@@ -270,6 +270,11 @@ function wireIpc() {
   ipcMain.handle('new-code', () => { server.newCode(); return { code: server.code, expires: server.codeExpires }; });
   ipcMain.handle('forget-device', (_e, id) => { server.forgetDevice(id); return store.devices(); });
   ipcMain.handle('set-setting', (_e, key, value) => {
+    if (key === 'theme') { // Gold (default) / Dark / White
+      store.setSetting('cartoonUi', value === 'gold');
+      store.setSetting('plainTheme', value === 'white' ? 'light' : 'dark');
+      return store.settings;
+    }
     store.setSetting(key, value);
     if (key === 'startWithWindows') applyStartup();
     if (casting && (key === 'quality' || key === 'goodMode' || key.startsWith('custom.'))) {

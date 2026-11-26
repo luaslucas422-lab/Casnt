@@ -211,8 +211,10 @@ class FitFrame(ctx: Context) : android.widget.FrameLayout(ctx) {
         val w = View.MeasureSpec.getSize(widthMeasureSpec)
         val h = View.MeasureSpec.getSize(heightMeasureSpec)
         val child = if (childCount > 0) getChildAt(0) else null
+        // Measure at natural size (never squeeze rows, which pushed things off the edge),
+        // then shrink the whole screen in onLayout so it fits, centred.
         child?.measure(
-            View.MeasureSpec.makeMeasureSpec(maxOf(w - 2 * margin, 0), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
             View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
         )
         setMeasuredDimension(w, h)
