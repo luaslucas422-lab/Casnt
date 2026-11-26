@@ -79,6 +79,15 @@ class Prefs(context: Context) {
         get() = sp.getBoolean("autoUpdateCheck", true)
         set(v) = sp.edit().putBoolean("autoUpdateCheck", v).apply()
 
+    /** Cast Player (Spotify on the PC, controlled from the Quest). Off by default. */
+    var castPlayer: Boolean
+        get() = sp.getBoolean("castPlayer", false)
+        set(v) = sp.edit().putBoolean("castPlayer", v).apply()
+
+    var ttIntroDone: Boolean
+        get() = sp.getBoolean("ttIntroDone", false)
+        set(v) = sp.edit().putBoolean("ttIntroDone", v).apply()
+
     var lastPcId: String
         get() = sp.getString("lastPcId", "") ?: ""
         set(v) = sp.edit().putString("lastPcId", v).apply()

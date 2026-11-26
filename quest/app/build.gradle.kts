@@ -11,8 +11,8 @@ android {
         applicationId = "com.calmchasm.casnt"
         minSdk = 29          // Quest 2 / 3 / 3S / Pro
         targetSdk = 34
-        versionCode = 2
-        versionName = "0.2.0"
+        versionCode = 3
+        versionName = "0.3.0"
     }
 
     // A fixed key is needed so updates install over the old app. CI passes it in from the

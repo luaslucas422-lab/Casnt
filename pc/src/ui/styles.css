@@ -173,3 +173,28 @@ body.plain .seg button.on { background: var(--gold-2); }
 .toggle { display: inline-block; }
 #castpanel { overflow-x: hidden; }
 #castpanel .setting > div:first-child { min-width: 0; }
+
+/* ---------- Stage 3: TikTok LIVE ---------- */
+.tt-head { display: flex; align-items: center; gap: 16px; margin-bottom: 14px; }
+.badge.live { background: #ff2d55; color: #fff; animation: pulse 1.6s infinite; }
+.settings-nav button.on { background: linear-gradient(var(--gold-1), var(--gold-2)); color: #000; }
+.tin { font: 700 15px var(--body-font); padding: 8px 12px; border: 3px solid var(--ink); border-radius: 12px; background: var(--bg-2); color: var(--text); }
+textarea.tin { resize: vertical; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; }
+.tile { background: var(--bg-2); border: 3px solid var(--ink); border-radius: 16px; padding: 10px 12px; }
+.tile.wide { grid-column: span 2; }
+.tile .n { font: 900 20px var(--font); color: var(--gold-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tile .l { color: var(--muted); font-size: 13px; }
+.feed { max-height: 360px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+.fitem { display: flex; align-items: center; gap: 8px; background: var(--bg-2); border: 2px solid var(--ink); border-radius: 12px; padding: 6px 10px; font-size: 14px; }
+.fitem img { width: 26px; height: 26px; border-radius: 50%; border: 2px solid #000; }
+.fitem.gift { border-color: var(--gold-2); }
+.fitem b { color: var(--gold-1); }
+.sboard { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.sbtn { font: 800 14px var(--body-font); padding: 12px 10px; border: 3px solid var(--ink); border-radius: 16px; background: linear-gradient(var(--gold-1), var(--gold-2)); color: #000; box-shadow: 0 4px 0 #000; }
+.sbtn:active { transform: translateY(3px); box-shadow: 0 1px 0 #000; }
+.ourl { padding: 8px 0; border-bottom: 2px dashed #000; }
+.ourl code { flex: 1; font-size: 13px; color: var(--muted); user-select: text; }
+.action { border-color: var(--ink); }
+.action .aname { font-size: 17px; }
+body.plain .sbtn { box-shadow: none; }

@@ -10,6 +10,7 @@ const { autoUpdater } = require('electron-updater');
 const { Store } = require('./store');
 const { CasntServer } = require('./server');
 const Q = require('./quality');
+const { setupStage3 } = require('./stage3');
 
 const START_HIDDEN = process.argv.includes('--hidden');
 const PC_NAME = process.env.COMPUTERNAME || os.hostname();
@@ -24,6 +25,7 @@ let casting = null;        // { device, mode, spec }
 let recording = null;      // { path, stream }
 let usb = { connected: false, serials: [], problem: '' };
 let updateState = { state: 'idle' };
+let stage3 = null;
 
 if (!app.requestSingleInstanceLock()) { app.exit(0); } // Casnt is already running: the other copy gets focused
 app.on('second-instance', () => showMain());
@@ -299,7 +301,7 @@ function wireIpc() {
   ipcMain.handle('key-request', () => server.requestKeyFrame());
   ipcMain.handle('fullscreen', (_e, on) => { if (mainWindow) mainWindow.setFullScreen(!!on); });
   ipcMain.handle('tiktok-check', () => checkTikTokStudio());
-  ipcMain.handle('open-url', (_e, url) => { if (/^https:\/\//.test(url)) shell.openExternal(url); });
+  ipcMain.handle('open-url', (_e, url) => { if (/^https:\/\//.test(url) || /^http:\/\/127\.0\.0\.1:\d+\//.test(url)) shell.openExternal(url); });
 }
 
 // ---------------- recording ----------------
@@ -335,6 +337,7 @@ app.whenReady().then(async () => {
   });
   wireServer();
   wireIpc();
+  stage3 = setupStage3({ app, ipcMain, dialog, shell, store, server, send, log: (m) => console.log('[casnt]', m) });
   try { await server.start(); } catch (e) { console.error('Casnt could not start its server:', e); }
   setupTray();
   applyStartup();
@@ -346,4 +349,4 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', (e) => { /* stay in the tray */ });
-app.on('before-quit', () => { quitting = true; if (server) server.stop(); });
+app.on('before-quit', () => { quitting = true; if (stage3) stage3.stop(); if (server) server.stop(); });

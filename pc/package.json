@@ -1,7 +1,7 @@
 {
   "name": "casnt",
   "productName": "Casnt",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Cast your Meta Quest 3 to your PC.",
   "author": "calm.chasm",
   "license": "UNLICENSED",
@@ -64,6 +64,7 @@
     ]
   },
   "dependencies": {
-    "electron-updater": "^6.8.11"
+    "electron-updater": "^6.8.11",
+    "tiktok-live-connector": "^2.5.0"
   }
 }

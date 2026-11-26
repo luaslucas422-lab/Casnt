@@ -219,7 +219,10 @@ class CasntServer extends EventEmitter {
         }
         break;
       case 'tiktok_check': this.emit('tiktok-check', { sessionId: session.id }); break;
-      default: break;
+      default:
+        // TikTok LIVE panel + Cast Player messages are handled by the app
+        if (/^(tiktok|player|spotify)_/.test(msg.t)) this.emit('quest-msg', { sessionId: session.id, msg });
+        break;
     }
   }
 
@@ -273,6 +276,28 @@ class CasntServer extends EventEmitter {
 
   requestKeyFrame() {
     if (this.castSession) this.send(this.castSession, { t: 'key_request' });
+  }
+
+  /** Topic subscriptions for Quest panels ("tiktok", "player"). */
+  subscribe(sessionId, topic, on = true) {
+    const s = this.sessions.get(sessionId);
+    if (!s) return;
+    s.subs = s.subs || new Set();
+    if (on) s.subs.add(topic); else s.subs.delete(topic);
+  }
+
+  hasSubs(topic) {
+    for (const s of this.sessions.values()) if (s.authed && s.subs && s.subs.has(topic)) return true;
+    return false;
+  }
+
+  sendToSubs(topic, obj) {
+    for (const s of this.sessions.values()) if (s.authed && s.subs && s.subs.has(topic)) this.send(s, obj);
+  }
+
+  sendTo(sessionId, obj) {
+    const s = this.sessions.get(sessionId);
+    if (s && s.authed) this.send(s, obj);
   }
 
   replyTikTok(sessionId, result) {

@@ -246,6 +246,15 @@ function renderSettings() {
     b.onclick = () => card.scrollIntoView({ behavior: S.animations ? 'smooth' : 'auto' });
     nav.appendChild(b);
   }
+  if (window.casntSpotifyCard) {
+    const sp = window.casntSpotifyCard();
+    sp.id = 'sec-player';
+    body.insertBefore(sp, document.getElementById('sec-updates'));
+    const b = document.createElement('button');
+    b.textContent = 'Cast Player';
+    b.onclick = () => sp.scrollIntoView({ behavior: S.animations ? 'smooth' : 'auto' });
+    nav.insertBefore(b, nav.children[7] || null);
+  }
   document.querySelector('main').scrollTop = scroll;
 }
 $('reset').onclick = async () => {
@@ -304,20 +313,6 @@ api.on('update', (u) => {
   if (document.querySelector('#settings.show')) renderSettings();
   if (u.state === 'ready') toast(`Casnt ${u.version} downloaded. It installs when you quit Casnt.`, 6000);
 });
-
-// =====================================================================  TikTok LIVE
-$('tt-cancel').onclick = () => document.querySelector('[data-go="home"]').click();
-$('tt-confirm').onclick = async () => {
-  const r = await api.tiktokCheck();
-  const box = $('tt-result');
-  box.style.display = '';
-  if (r.installed) {
-    box.innerHTML = '<h2>TikTok LIVE Studio found! ✅</h2><div class="hint">The LIVE tools (text-to-speech, alerts, goals, chat overlay) arrive in the next Casnt update.</div>';
-  } else {
-    box.innerHTML = '<h2>TikTok LIVE Studio not found</h2><div class="hint">Get it from TikTok, then press Confirm again.</div><div class="row" style="margin-top:14px"><button class="btn" id="tt-dl">Download LIVE Studio</button></div>';
-    $('tt-dl').onclick = () => api.openUrl(r.downloadUrl);
-  }
-};
 
 // =====================================================================  cast requests
 function showRequest(req) {

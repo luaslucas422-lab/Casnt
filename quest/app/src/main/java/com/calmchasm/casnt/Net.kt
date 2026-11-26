@@ -55,6 +55,8 @@ class Link private constructor(val host: String, val port: Int, private val sock
     /** Messages that arrive while nobody is awaiting them (cast_stop, key_request, unpaired…). */
     @Volatile var listener: ((JSONObject) -> Unit)? = null
     @Volatile var onClosed: (() -> Unit)? = null
+    /** Panels (TikTok, Cast Player) take every message through [listener]. */
+    @Volatile var catchAll = false
 
     private fun startThreads() {
         Thread({
@@ -81,7 +83,7 @@ class Link private constructor(val host: String, val port: Int, private val sock
                     if (type == Proto.JSON) {
                         val msg = JSONObject(String(buf, Charsets.UTF_8))
                         val l = listener
-                        if (l != null && msg.optString("t") in ASYNC) l(msg) else inbox.put(msg)
+                        if (l != null && (catchAll || msg.optString("t") in ASYNC)) l(msg) else inbox.put(msg)
                     }
                 }
             } catch (_: Exception) { } finally { close() }
@@ -258,6 +260,31 @@ object UsbConnect {
         } finally {
             link.close()
         }
+    }
+}
+
+/** A live connection for a Quest panel (TikTok LIVE, Cast Player) that subscribes to PC updates. */
+class Panel(private val prefs: Prefs, private val onMsg: (JSONObject) -> Unit, private val onDown: () -> Unit) {
+    @Volatile var link: Link? = null
+        private set
+
+    /** Blocking: connect to [pc] and authenticate. */
+    fun open(pc: SavedPc): Connector.Result {
+        val r = Connector.connect(prefs, pc)
+        if (r is Connector.Result.Ok) {
+            r.link.catchAll = true
+            r.link.listener = onMsg
+            r.link.onClosed = onDown
+            link = r.link
+        }
+        return r
+    }
+
+    fun send(o: JSONObject) { link?.send(o) }
+
+    fun close() {
+        link?.let { it.onClosed = null; it.listener = null; it.close() }
+        link = null
     }
 }
 

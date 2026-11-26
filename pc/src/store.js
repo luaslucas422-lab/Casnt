@@ -94,6 +94,12 @@ class Store {
     this.save();
   }
 
+  // TikTok LIVE config + Spotify link are stored as whole objects
+  get tiktok() { return this.data.tiktok || {}; }
+  setTiktok(cfg) { this.data.tiktok = cfg; this.save(); }
+  get spotify() { return this.data.spotify || {}; }
+  setSpotify(s) { this.data.spotify = s; this.save(); }
+
   devices() { return this.data.devices.map(({ token, ...d }) => d); }
 
   addDevice({ deviceId, name, model }) {

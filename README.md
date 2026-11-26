@@ -24,8 +24,24 @@ By calm.chasm.
 - **More settings:** popup position, auto-accept, auto-decline time, default cast mode, start quality, sound effects, animations, and an Experimental section.
 - **Fixes:** Quest screens now shrink to fit the panel, so nothing goes off-screen.
 
-## Coming next
-- **Stage 3:** the TikTok LIVE area (a Tikfinity-style toolkit): TTS (all chat / !tts / gifters), gift and follow alerts, goals and counters, chat overlay, gift actions, browser-source overlays, and a lighter Quest panel.
+## New in 0.3.0: TikTok LIVE + Cast Player
+**TikTok LIVE (PC)**, a Tikfinity-style toolkit:
+- **Connect:** type your @username. Casnt waits until you go LIVE and reconnects on its own.
+- **Live tab:** live feed, stats, the top gifter, and test buttons so you can try everything without being LIVE.
+- **TTS:** reads all chat, a `!tts` command, gifters only or followers only. Pick the Windows voice, speed, pitch and volume. Add blocked words and viewers, a per-viewer cooldown and a queue limit. It can also read gifts and follows.
+- **Alerts:** gifts (with a minimum value), follows, shares, subs and like milestones, each with its own sound.
+- **28 preset sound effects** (air horn, applause, fanfare, level up, ka-ching, sad trombone…) plus your own MP3/WAV files. Viewers can play them with `!sound name`, with a cooldown.
+- **Actions & events:** when a gift, follow, share, sub, every N likes, a chat command or a keyword happens, Casnt can play a sound, say something, show an alert, **press keys in a game**, or show it on the Quest. Each action has its own cooldown and a per-viewer cooldown.
+- **Goals:** likes, follows, diamonds, shares, subs and viewers.
+- **Viewer points**, with `!points` and `!top`.
+- **Overlays** for TikTok LIVE Studio or OBS: alerts, chat, goals, top gifters, gift wall, counters, points, or all of them at once.
+
+**TikTok LIVE (Quest):** the live feed, stats, connect/disconnect, TTS on/off and skip, sounds and alerts on/off, a soundboard and test events.
+
+**Cast Player** (off by default, turned on from the Quest):
+- **Setup:** it asks "Do you have Spotify on your PC?", checks the PC, and if Spotify is missing it opens the download on the PC.
+- **Controls:** shows what's playing with the album art, plus play/pause, next and back. This works with any Spotify account.
+- **Search and playlists** need a linked Spotify account (Casnt on the PC → Settings → Cast Player). Starting a song from the Quest also needs Spotify Premium; without it, Casnt opens the song in Spotify on the PC instead.
 
 ## Install
 1. Download the build from **Releases**: `Casnt-Quest.apk` and `Casnt-Setup-x.y.z.exe`.
@@ -42,3 +58,6 @@ The PC and the Quest must be on the same Wi-Fi, or connected by USB. Allow Casnt
 ## Notes
 - The Quest APK is signed with the key in the `CASNT_KEYSTORE_B64` / `CASNT_KEYSTORE_PASSWORD` repo secrets. Without them, CI uses a throwaway key and updates won't install over the old app.
 - The TikTok LIVE button uses a generic "LIVE" badge, not TikTok's logo.
+
+## Licence note
+The TikTok LIVE connection uses [tiktok-live-connector](https://github.com/zerodytrash/TikTok-Live-Connector), which is AGPL-3.0. Its source and Casnt's own source are public in this repo. See THIRD_PARTY_NOTICES.md.

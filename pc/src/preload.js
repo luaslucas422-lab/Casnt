@@ -2,7 +2,8 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const CHANNELS = ['code', 'paired', 'devices', 'cast-request', 'cast-request-cancelled', 'cast-accepted',
-  'cast-started', 'cast-ended', 'video-config', 'video', 'audio', 'usb', 'ping', 'quest-status', 'rec-saved', 'update'];
+  'cast-started', 'cast-ended', 'video-config', 'video', 'audio', 'usb', 'ping', 'quest-status', 'rec-saved', 'update',
+  'tt-tts', 'tt-tts-skip', 'tt-sound', 'tt-alert', 'tt-state', 'tt-feed', 'tt-status', 'tt-log', 'tt-config'];
 
 contextBridge.exposeInMainWorld('casnt', {
   on(channel, cb) {
@@ -29,4 +30,21 @@ contextBridge.exposeInMainWorld('casnt', {
   openRecordings: () => ipcRenderer.invoke('open-recordings'),
   updateCheck: () => ipcRenderer.invoke('update-check'),
   updateQuest: () => ipcRenderer.invoke('update-quest'),
+  tt: {
+    get: () => ipcRenderer.invoke('tt-get'),
+    set: (cfg) => ipcRenderer.invoke('tt-set', cfg),
+    connect: (u) => ipcRenderer.invoke('tt-connect', u),
+    disconnect: () => ipcRenderer.invoke('tt-disconnect'),
+    simulate: (t) => ipcRenderer.invoke('tt-simulate', t),
+    resetStats: () => ipcRenderer.invoke('tt-reset-stats'),
+    testKeys: (k) => ipcRenderer.invoke('tt-test-keys', k),
+    soundUrl: (id) => ipcRenderer.invoke('tt-sound-url', id),
+    addSounds: () => ipcRenderer.invoke('tt-add-sounds'),
+    removeSound: (id) => ipcRenderer.invoke('tt-remove-sound', id),
+  },
+  sp: {
+    status: () => ipcRenderer.invoke('sp-status'),
+    link: (id) => ipcRenderer.invoke('sp-link', id),
+    unlink: () => ipcRenderer.invoke('sp-unlink'),
+  },
 });
