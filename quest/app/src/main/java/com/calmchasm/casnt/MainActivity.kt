@@ -1,4 +1,4 @@
-package com.darkerdawnfr.casnt
+package com.calmchasm.casnt
 
 import android.Manifest
 import android.app.Activity
@@ -28,8 +28,11 @@ class MainActivity : Activity() {
     private var screen = ""
     private var castMode = "everything"
     private var pendingPc: SavedPc? = null
-    private var pendingQuality = "good"
+    private var pendingSpec = "{}"
     private var job = 0 // bumps whenever the user leaves a waiting screen, so stale results are ignored
+    private var update: Updater.Release? = null
+    private var updateChecked = false
+    private var updateNote = ""
 
     private val castListener: (Boolean, String?) -> Unit = { on, note ->
         if (on) showCasting() else if (screen == "casting" || screen == "waiting") showHome(note)
@@ -50,6 +53,7 @@ class MainActivity : Activity() {
             CastState.running -> showCasting()
             else -> showHome()
         }
+        if (prefs.autoUpdateCheck) checkForUpdate(quiet = true)
     }
 
     override fun onDestroy() {
@@ -73,19 +77,26 @@ class MainActivity : Activity() {
 
     private fun begin(name: String): LinearLayout {
         screen = name
-        kit = Kit(this, Look(prefs.cartoonUi, prefs.plainTheme))
+        kit = Kit(this, Look(prefs.cartoonUi, prefs.plainTheme), prefs.animations, prefs.sounds)
         root.removeAllViews()
         root.setBackgroundColor(kit.look.bg)
         return kit.column()
     }
 
-    private fun place(content: View) {
-        val wrap = FrameLayout(this)
-        wrap.setPadding(dp(40), dp(36), dp(40), dp(36))
-        wrap.addView(content, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER))
-        val scroll = ScrollView(this).apply { isFillViewport = true }
-        scroll.addView(wrap, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
-        root.addView(scroll, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+    /** Shows a screen. Normal screens shrink to fit the panel; long ones (settings) scroll. */
+    private fun place(content: View, scroll: Boolean = false) {
+        if (scroll) {
+            val wrap = FrameLayout(this)
+            wrap.setPadding(dp(40), dp(30), dp(40), dp(40))
+            wrap.addView(content, FrameLayout.LayoutParams(FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT, Gravity.CENTER_HORIZONTAL))
+            val sv = ScrollView(this).apply { isFillViewport = true }
+            sv.addView(wrap, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.WRAP_CONTENT))
+            root.addView(sv, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        } else {
+            val fit = FitFrame(this)
+            fit.addView(content)
+            root.addView(fit, FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT, FrameLayout.LayoutParams.MATCH_PARENT))
+        }
         kit.popIn(content)
     }
 
@@ -95,18 +106,28 @@ class MainActivity : Activity() {
         return "$part, ${prefs.userName}"
     }
 
-    private fun input(value: String, hint: String, numeric: Boolean = false): EditText = EditText(this).apply {
+    private fun input(value: String, hint: String): EditText = EditText(this).apply {
         setText(value)
         this.hint = hint
         textSize = 24f
         setSingleLine()
         imeOptions = EditorInfo.IME_ACTION_DONE
-        inputType = if (numeric) InputType.TYPE_CLASS_NUMBER else InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
+        inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_WORDS
         setTextColor(kit.look.text)
         setHintTextColor(kit.look.faint)
         background = kit.rounded(intArrayOf(kit.look.bg), 18)
         setPadding(dp(20), dp(14), dp(20), dp(14))
         minWidth = dp(420)
+    }
+
+    /** Row of choices; the picked one is gold. */
+    private fun seg(options: List<Pair<String, String>>, current: String, size: Float = 17f, onPick: (String) -> Unit): LinearLayout {
+        val r = kit.row()
+        options.forEachIndexed { i, (value, label) ->
+            r.add(kit.button(label, if (value == current) Kit.Kind.GOLD else Kit.Kind.DARK, size, 9, 16) { onPick(value) })
+            if (i < options.size - 1) r.add(kit.hspace(8))
+        }
+        return r
     }
 
     private fun backButton() = kit.button("Back", Kit.Kind.DARK, 20f, 12, 28) { showHome() }
@@ -130,42 +151,69 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ home
     private fun showHome(message: String? = null) {
         job++
+        val myJob = job
         val c = begin("home")
         c.add(kit.title("Casnt", 64f))
         if (prefs.showGreeting) c.add(kit.heading(greeting(), 28f), top = 4)
         if (message != null) c.add(kit.label(message, 18f, kit.look.muted).apply { maxWidth = dp(640) }, top = 12)
 
-        c.add(kit.button("CAST TO PC", sizeSp = 42f, padV = 30, padH = 90) { onCastPressed() }, top = 28)
+        c.add(kit.button("CAST TO PC", sizeSp = 42f, padV = 30, padH = 90) { onCastPressed() }, top = 26)
 
         val pcs = prefs.pcs()
         val last = pcs.firstOrNull { it.pcId == prefs.lastPcId } ?: pcs.firstOrNull()
-        c.add(kit.label(if (last == null) "No PC paired yet — tap Cast to PC to add one." else "Casting to ${last.pcName}",
+        c.add(kit.label(if (last == null) "No PC paired yet. Tap Cast to PC, or plug into your PC by USB." else "Casting to ${last.pcName}",
             16f, kit.look.faint), top = 12)
 
         // TikTok LIVE sits right under the home controls.
-        c.add(kit.button("●  TikTok LIVE", Kit.Kind.PINK, 24f, 14, 40) { showTikTokAsk() }, top = 24)
+        c.add(kit.button("●  TikTok LIVE", Kit.Kind.PINK, 24f, 14, 40) { showTikTokAsk() }, top = 22)
 
         val r = kit.row()
         r.add(kit.button("My PCs", Kit.Kind.DARK, 20f, 12, 28) { showPcs() })
         r.add(kit.hspace(16))
         r.add(kit.button("Settings", Kit.Kind.DARK, 20f, 12, 28) { showSettings() })
-        c.add(r, top = 22)
+        c.add(r, top = 20)
+
+        update?.let { rel ->
+            c.add(kit.button("⬆  Update to Casnt ${rel.version}", Kit.Kind.GOLD, 18f, 10, 24) { showUpdate(rel) }, top = 16)
+        }
         place(c)
+        if (prefs.usbInstantConnect && message == null) watchUsb(myJob)
+    }
+
+    /** USB instant connect: if the PC is reachable over the cable and we're not paired, pair now. */
+    private fun watchUsb(myJob: Int) {
+        bg {
+            while (myJob == job && (screen == "home" || screen == "addpc")) {
+                when (val r = UsbConnect.check(prefs)) {
+                    is UsbConnect.Result.NewlyPaired -> { ui { if (myJob == job) showHome("Connected to ${r.pc.pcName} over USB!") }; return@bg }
+                    is UsbConnect.Result.AlreadyPaired -> return@bg
+                    is UsbConnect.Result.TurnedOffOnPc -> return@bg
+                    is UsbConnect.Result.NoUsb -> Unit
+                }
+                try { Thread.sleep(2500) } catch (_: InterruptedException) { return@bg }
+            }
+        }
     }
 
     private fun onCastPressed() {
         val pcs = prefs.pcs()
         when {
             pcs.isEmpty() -> showAddPc()
-            pcs.size == 1 -> showCastMode(pcs[0])
+            pcs.size == 1 -> pickMode(pcs[0])
             else -> showPickPc(pcs)
         }
+    }
+
+    private fun pickMode(pc: SavedPc) {
+        val d = prefs.defaultMode
+        if (d == "everything" || (d == "app" && Build.VERSION.SDK_INT >= 34)) { castMode = d; startCastRequest(pc) }
+        else showCastMode(pc)
     }
 
     private fun showPickPc(pcs: List<SavedPc>) {
         val c = begin("pick")
         c.add(kit.heading("Which PC?", 36f))
-        for (pc in pcs) c.add(kit.button(pc.pcName, Kit.Kind.DARK, 24f) { showCastMode(pc) }, LinearLayout.LayoutParams.MATCH_PARENT, top = 14)
+        for (pc in pcs) c.add(kit.button(pc.pcName, Kit.Kind.DARK, 24f) { pickMode(pc) }, LinearLayout.LayoutParams.MATCH_PARENT, top = 14)
         c.add(backButton(), top = 22)
         place(c)
     }
@@ -179,16 +227,14 @@ class MainActivity : Activity() {
         c.add(kit.label("Casting to ${pc.pcName}", 18f, kit.look.muted), top = 6)
 
         val r = kit.row()
-        val everything = option("Everything", "Everything you see, including your Meta menus.", castMode == "everything", true) {
+        r.add(option("Everything", "Everything you see, including your Meta menus.", castMode == "everything", true) {
             castMode = "everything"; showCastMode(pc)
-        }
-        val app = option("Just an app", if (appShareOk) "Pick one app or game. Your Meta menus stay hidden."
+        }, dp(330))
+        r.add(kit.hspace(22))
+        r.add(option("Just an app", if (appShareOk) "Pick one app or game. Your Meta menus stay hidden."
             else "Needs a newer Horizon OS update on this Quest.", castMode == "app", appShareOk) {
             castMode = "app"; showCastMode(pc)
-        }
-        r.add(everything, dp(330))
-        r.add(kit.hspace(22))
-        r.add(app, dp(330))
+        }, dp(330))
         c.add(r, top = 22)
 
         val b = kit.row()
@@ -235,7 +281,7 @@ class MainActivity : Activity() {
                 }
                 is Connector.Result.Forgotten -> ui {
                     prefs.removePc(pc.pcId)
-                    if (myJob == job) showHome("${pc.pcName} forgot this Quest. Pair it again with a new code.")
+                    if (myJob == job) showHome("${pc.pcName} forgot this Quest. Pair it again.")
                 }
                 is Connector.Result.Ok -> {
                     val link = r.link
@@ -244,12 +290,12 @@ class MainActivity : Activity() {
                     Session.pcName = pc.pcName
                     prefs.lastPcId = pc.pcId
                     ui { status.text = "Waiting for ${pc.pcName} to accept…" }
-                    link.send(JSONObject().put("t", "cast_request").put("mode", castMode))
-                    val answer = link.await(setOf("cast_accept", "cast_decline"), 65_000L)
+                    link.send(JSONObject().put("t", "cast_request").put("mode", castMode).put("quality", prefs.startQuality))
+                    val answer = link.await(setOf("cast_accept", "cast_decline"), 125_000L)
                     ui {
                         if (myJob != job) { link.close(); return@ui }
                         when (answer?.optString("t")) {
-                            "cast_accept" -> launchProjection(answer?.optString("quality", "good") ?: "good")
+                            "cast_accept" -> launchProjection(answer?.optJSONObject("spec") ?: Spec.GOOD.toJson())
                             "cast_decline" -> {
                                 endSession()
                                 showHome(if (answer?.optString("reason") == "busy") "${pc.pcName} is already receiving a cast."
@@ -287,8 +333,8 @@ class MainActivity : Activity() {
         Session.link = null
     }
 
-    private fun launchProjection(quality: String) {
-        pendingQuality = quality
+    private fun launchProjection(spec: JSONObject) {
+        pendingSpec = spec.toString()
         showWaiting("Confirm the share prompt…")
         val mpm = getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         val intent = if (Build.VERSION.SDK_INT >= 34) {
@@ -306,10 +352,13 @@ class MainActivity : Activity() {
         super.onActivityResult(requestCode, resultCode, data)
         if (requestCode != REQ_PROJECTION) return
         if (resultCode == RESULT_OK && data != null && Session.link != null) {
+            CastState.game = prefs.gameOnStart
+            CastState.mic = prefs.micOnStart
+            CastState.mode = castMode
             val svc = Intent(this, CastService::class.java)
                 .putExtra(CastService.EXTRA_RESULT_CODE, resultCode)
                 .putExtra(CastService.EXTRA_RESULT_DATA, data)
-                .putExtra(CastService.EXTRA_QUALITY, pendingQuality)
+                .putExtra(CastService.EXTRA_SPEC, pendingSpec)
             startForegroundService(svc)
         } else {
             Session.link?.send(JSONObject().put("t", "cast_stop"))
@@ -321,50 +370,83 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ casting
     private fun showCasting() {
         val c = begin("casting")
-        c.add(kit.title("Casnt", 48f))
-        val dot = kit.label("●", 54f, 0xFF7DFF6A.toInt())
+        val top = kit.row()
+        val dot = kit.label("●", 40f, 0xFF7DFF6A.toInt())
         kit.pulse(dot)
-        c.add(dot, top = 6)
-        c.add(kit.heading("Casting to ${Session.pcName}", 34f), top = 4)
-        c.add(kit.label(if (castMode == "app") "Only the app you picked is being shared." else "Your PC is showing everything you see.",
-            18f, kit.look.muted), top = 8)
-        c.add(kit.label("Quality, audio and stats controls arrive in the next Casnt update.", 15f, kit.look.faint), top = 6)
-        c.add(kit.button("STOP CASTING", Kit.Kind.RED, 30f, 22, 60) {
+        top.add(dot)
+        top.add(kit.hspace(12))
+        top.add(kit.heading("Casting to ${Session.pcName}", 32f))
+        c.add(top)
+        val spec = CastState.spec
+        c.add(kit.label((if (CastState.mode == "app") "Sharing just the app you picked" else "Sharing everything you see") +
+            (spec?.let { " · ${it.label()}" } ?: ""), 17f, kit.look.muted), top = 6)
+
+        // quality settings while casting
+        val q = kit.card(pad = 20)
+        q.add(kit.label("Quality", 20f, kit.look.text, bold = true))
+        q.add(seg(listOf("potato" to "Potato", "medium" to "Medium", "good" to "Good", "max" to "Max"), spec?.preset ?: "good", 19f) {
+            CastService.current?.setQuality(Spec.preset(it))
+        }, top = 10)
+        q.add(kit.label("Better quality = more battery. Max uses everything the Quest can do.", 14f, kit.look.faint), top = 8)
+        c.add(q, top = 16)
+
+        // audio on/off
+        val a = kit.row()
+        a.add(kit.button(if (CastState.game) "🎮 Game audio: ON" else "🎮 Game audio: OFF",
+            if (CastState.game) Kit.Kind.GOLD else Kit.Kind.DARK, 19f, 12, 22) {
+            CastService.current?.setAudio(!CastState.game, CastState.mic)
+        })
+        a.add(kit.hspace(14))
+        a.add(kit.button(if (CastState.mic) "🎙️ Mic: ON" else "🎙️ Mic: OFF",
+            if (CastState.mic) Kit.Kind.GOLD else Kit.Kind.DARK, 19f, 12, 22) {
+            CastService.current?.setAudio(CastState.game, !CastState.mic)
+        })
+        c.add(a, top = 16)
+
+        c.add(kit.button("STOP CASTING", Kit.Kind.RED, 28f, 18, 54) {
             startService(Intent(this, CastService::class.java).setAction(CastService.ACTION_STOP))
-        }, top = 26)
+        }, top = 20)
         place(c)
     }
 
     // ------------------------------------------------------------------ pairing
     private fun showAddPc(error: String? = null) {
         job++
+        val myJob = job
         val c = begin("addpc")
-        c.add(kit.heading("Add a PC", 38f))
-        c.add(kit.label("Open Casnt on your PC and type the 6-digit code it shows.", 18f, kit.look.muted), top = 6)
-        if (error != null) c.add(kit.label(error, 16f, 0xFFFF8A7A.toInt()).apply { maxWidth = dp(620) }, top = 10)
+        val two = kit.row()
 
+        // left: instructions + code boxes
+        val left = kit.column()
+        left.add(kit.heading("Add a PC", 38f))
+        left.add(kit.label("Type the 6-digit code shown in Casnt on your PC.", 18f, kit.look.muted).apply { maxWidth = dp(470) }, top = 6)
+        if (prefs.usbInstantConnect) left.add(kit.label("Or plug your Quest into the PC with USB to skip the code.", 15f, kit.look.faint).apply { maxWidth = dp(470) }, top = 6)
+        if (error != null) left.add(kit.label(error, 16f, 0xFFFF8A7A.toInt()).apply { maxWidth = dp(470) }, top = 10)
         val code = StringBuilder()
         val boxes = kit.row()
         val cells = (0 until 6).map {
-            kit.label("", 40f, if (kit.look.cartoon) 0xFF000000.toInt() else kit.look.text, bold = true).apply {
+            kit.label("", 36f, if (kit.look.cartoon) 0xFF000000.toInt() else kit.look.text, bold = true).apply {
                 background = kit.rounded(if (kit.look.cartoon) kit.look.gold else intArrayOf(kit.look.panel), 16)
                 gravity = Gravity.CENTER
             }
         }
         cells.forEachIndexed { i, v ->
-            boxes.add(v, dp(70), dp(88))
-            if (i < 5) boxes.add(kit.hspace(10))
+            boxes.add(v, dp(62), dp(80))
+            if (i < 5) boxes.add(kit.hspace(8))
         }
-        c.add(boxes, top = 20)
+        left.add(boxes, top = 18)
         fun refresh() { cells.forEachIndexed { i, v -> v.text = if (i < code.length) code[i].toString() else "" } }
+        two.add(left)
+        two.add(kit.hspace(36))
 
+        // right: number pad
         val pad = kit.column()
         val keys = listOf(listOf("1", "2", "3"), listOf("4", "5", "6"), listOf("7", "8", "9"), listOf("Back", "0", "⌫"))
-        for (rowKeys in keys) {
+        keys.forEachIndexed { ri, rowKeys ->
             val r = kit.row()
             rowKeys.forEachIndexed { i, k ->
                 val kind = if (k.length == 1 && k[0].isDigit()) Kit.Kind.GOLD else Kit.Kind.DARK
-                r.add(kit.button(k, kind, if (k == "Back") 20f else 30f, 12, 0) {
+                r.add(kit.button(k, kind, if (k == "Back") 19f else 28f, 10, 0) {
                     when (k) {
                         "Back" -> showHome()
                         "⌫" -> { if (code.isNotEmpty()) code.deleteCharAt(code.length - 1); refresh() }
@@ -373,13 +455,15 @@ class MainActivity : Activity() {
                             if (code.length == 6) tryCode(code.toString())
                         }
                     }
-                }, dp(120))
-                if (i < 2) r.add(kit.hspace(12))
+                }, dp(104))
+                if (i < 2) r.add(kit.hspace(10))
             }
-            pad.add(r, top = 12)
+            pad.add(r, top = if (ri == 0) 0 else 10)
         }
-        c.add(pad, top = 14)
+        two.add(pad)
+        c.add(two)
         place(c)
+        if (prefs.usbInstantConnect) watchUsb(myJob)
     }
 
     private fun tryCode(code: String) {
@@ -403,7 +487,7 @@ class MainActivity : Activity() {
             }
             ui {
                 if (myJob == job) showAddPc(if (found.isEmpty())
-                    "No Casnt PC found. Make sure Casnt is open on your PC and that your Quest is on the same Wi-Fi (or plugged in by USB)."
+                    "No Casnt PC found. Make sure Casnt is open on your PC and your Quest is on the same Wi-Fi (or plugged in by USB)."
                 else "That code didn't match. Check the code on your PC and try again.")
             }
         }
@@ -464,43 +548,116 @@ class MainActivity : Activity() {
     // ------------------------------------------------------------------ settings
     private fun showSettings() {
         val c = begin("settings")
-        c.add(kit.heading("Settings", 38f))
-        val card = kit.card(pad = 26)
+        c.add(kit.heading("Settings", 40f))
+        val name = input(prefs.userName, "Your name").apply { minWidth = dp(280) }
+        fun saveName() { name.text.toString().trim().takeIf { it.isNotEmpty() }?.let { prefs.userName = it } }
+        name.setOnEditorActionListener { _, _, _ -> saveName(); false }
+        fun reopen() { saveName(); showSettings() }
 
-        fun settingRow(title: String, sub: String, control: View) {
+        fun section(title: String, experimental: Boolean = false): LinearLayout {
+            val card = kit.card(pad = 24)
+            val h = kit.row()
+            h.add(kit.heading(title, 26f))
+            if (experimental) {
+                h.add(kit.hspace(10))
+                h.add(kit.label(" EXPERIMENTAL ", 12f, 0xFFFFFFFF.toInt(), bold = true).apply { background = kit.rounded(kit.look.pink, 10, 2) })
+            }
+            card.add(h)
+            c.add(card, dp(820), top = 18)
+            return card
+        }
+        fun rowIn(card: LinearLayout, title: String, sub: String, control: View) {
             val r = kit.row()
             val texts = kit.column().apply { gravity = Gravity.START }
-            texts.add(kit.label(title, 21f, kit.look.text, bold = true).apply { gravity = Gravity.START })
-            texts.add(kit.label(sub, 15f, kit.look.faint).apply { gravity = Gravity.START })
+            texts.add(kit.label(title, 20f, kit.look.text, bold = true).apply { gravity = Gravity.START })
+            if (sub.isNotEmpty()) texts.add(kit.label(sub, 14f, kit.look.faint).apply { gravity = Gravity.START })
             r.add(texts, 0, weight = 1f)
             r.add(control)
             card.add(r, LinearLayout.LayoutParams.MATCH_PARENT, top = 14)
         }
 
-        val name = input(prefs.userName, "Your name").apply { minWidth = dp(260) }
-        name.setOnEditorActionListener { _, _, _ ->
-            name.text.toString().trim().takeIf { it.isNotEmpty() }?.let { prefs.userName = it }
-            false
-        }
-        settingRow("Your name", "Shown in \"Welcome back\" and on your PC", name)
-        settingRow("Show greeting", "\"Good evening, ${prefs.userName}\" on the home screen",
-            kit.toggle(prefs.showGreeting) { prefs.showGreeting = it })
-        settingRow("Cartoony gold look", "Turn off for a clean look", kit.toggle(prefs.cartoonUi) { prefs.cartoonUi = it; saveName(name); showSettings() })
-        if (!prefs.cartoonUi) {
-            val pick = kit.row()
-            pick.add(kit.button("Dark", if (prefs.plainTheme == "dark") Kit.Kind.GOLD else Kit.Kind.DARK, 18f, 10, 22) { prefs.plainTheme = "dark"; showSettings() })
-            pick.add(kit.hspace(10))
-            pick.add(kit.button("Light", if (prefs.plainTheme == "light") Kit.Kind.GOLD else Kit.Kind.DARK, 18f, 10, 22) { prefs.plainTheme = "light"; showSettings() })
-            settingRow("Clean look colour", "Used when the cartoony look is off", pick)
-        }
-        c.add(card, dp(760), top = 16)
-        c.add(kit.label("Casnt ${BuildConfigLite.VERSION} · by DarkerDawnFR", 14f, kit.look.faint), top = 14)
-        c.add(kit.button("Done", sizeSp = 22f) { saveName(name); showHome() }, top = 16)
-        place(c)
+        val you = section("You")
+        rowIn(you, "Your name", "Shown in \"Welcome back\" and on your PC", name)
+        rowIn(you, "Show greeting", "\"${greeting()}\" on the home screen", kit.toggle(prefs.showGreeting) { prefs.showGreeting = it })
+
+        val look = section("Look")
+        rowIn(look, "Cartoony gold look", "Turn off for a clean look", kit.toggle(prefs.cartoonUi) { prefs.cartoonUi = it; reopen() })
+        if (!prefs.cartoonUi) rowIn(look, "Clean look colour", "", seg(listOf("dark" to "Dark", "light" to "Light"), prefs.plainTheme) { prefs.plainTheme = it; reopen() })
+        rowIn(look, "Animations", "Bouncy buttons and pop-ins", kit.toggle(prefs.animations) { prefs.animations = it; reopen() })
+        rowIn(look, "Sound effects", "Little blips on buttons", kit.toggle(prefs.sounds) { prefs.sounds = it; reopen() })
+
+        val cast = section("Casting")
+        rowIn(cast, "What Cast to PC shares", "Ask = choose every time", seg(listOf("ask" to "Ask", "everything" to "Everything", "app" to "Just an app"), prefs.defaultMode) { prefs.defaultMode = it; reopen() })
+        rowIn(cast, "Start quality", "PC = use the quality set on your PC", seg(listOf("pc" to "PC", "potato" to "Potato", "medium" to "Medium", "good" to "Good", "max" to "Max"), prefs.startQuality, 15f) { prefs.startQuality = it; reopen() })
+        rowIn(cast, "Game audio at start", "Send game sound to the PC", kit.toggle(prefs.gameOnStart) { prefs.gameOnStart = it })
+        rowIn(cast, "Mic at start", "Send your Quest mic to the PC", kit.toggle(prefs.micOnStart) { prefs.micOnStart = it })
+
+        val conn = section("Connecting")
+        rowIn(conn, "USB instant connect", "Plugged into your PC by USB? Skip the code.", kit.toggle(prefs.usbInstantConnect) { prefs.usbInstantConnect = it })
+        rowIn(conn, "My PCs", "${prefs.pcs().size} paired", kit.button("Open", Kit.Kind.DARK, 17f, 9, 20) { saveName(); showPcs() })
+
+        val upd = section("Updates")
+        rowIn(upd, "Check for updates automatically", "Looks on the Casnt GitHub releases when Casnt opens", kit.toggle(prefs.autoUpdateCheck) { prefs.autoUpdateCheck = it })
+        val ver = Updater.currentVersion(this)
+        rowIn(upd, "Casnt $ver", updateNote.ifEmpty { "Tap to look for a newer version" },
+            kit.button("Check now", Kit.Kind.GOLD, 17f, 9, 20) { saveName(); checkForUpdate(quiet = false) })
+
+        val exp = section("Experimental", experimental = true)
+        exp.add(kit.label("Camera view (first / third person)", 20f, kit.look.text, bold = true).apply { gravity = Gravity.START },
+            LinearLayout.LayoutParams.MATCH_PARENT, top = 14)
+        exp.add(kit.label("Casnt can only cast what the game draws, so it can't put the camera behind you in other games. " +
+            "Third person only works in games or mods with their own spectator camera. More experimental options will show up here.",
+            14f, kit.look.faint).apply { gravity = Gravity.START }, LinearLayout.LayoutParams.MATCH_PARENT, top = 4)
+
+        c.add(kit.label("Casnt $ver · by calm.chasm", 14f, kit.look.faint), top = 16)
+        c.add(kit.button("Done", sizeSp = 22f) { saveName(); showHome() }, top = 14)
+        place(c, scroll = true)
     }
 
-    private fun saveName(field: EditText) {
-        field.text.toString().trim().takeIf { it.isNotEmpty() }?.let { prefs.userName = it }
+    // ------------------------------------------------------------------ updates
+    private fun checkForUpdate(quiet: Boolean) {
+        if (!quiet) { updateNote = "Checking…"; showSettings() }
+        bg {
+            val rel = Updater.latest()
+            val cur = Updater.currentVersion(this)
+            ui {
+                updateChecked = true
+                update = if (rel != null && Updater.isNewer(rel.version, cur)) rel else null
+                updateNote = when {
+                    rel == null -> "Couldn't reach GitHub. Check the Quest's Wi-Fi."
+                    update != null -> "Casnt ${rel?.version} is out!"
+                    else -> "You're on the newest version."
+                }
+                if (!quiet) { val u = update; if (u != null) showUpdate(u) else if (screen == "settings") showSettings() }
+                else if (update != null && screen == "home") showHome()
+            }
+        }
+    }
+
+    private fun showUpdate(rel: Updater.Release) {
+        val c = begin("update")
+        c.add(kit.title("Casnt ${rel.version}", 48f))
+        c.add(kit.label("A new Casnt is out. You have ${Updater.currentVersion(this)}.", 18f, kit.look.muted), top = 8)
+        val status = kit.label("", 18f, kit.look.text, bold = true)
+        c.add(status, top = 14)
+        val r = kit.row()
+        r.add(backButton())
+        r.add(kit.hspace(16))
+        r.add(kit.button("Download & install", sizeSp = 22f) {
+            status.text = "Downloading… 0%"
+            UpdateState.onFail = { msg -> ui { status.text = "Install failed: $msg\nYou can also update from your PC: Settings → Updates → Update Quest (USB)." } }
+            bg {
+                val file = Updater.download(this, rel) { p -> ui { status.text = "Downloading… $p%" } }
+                ui {
+                    if (file == null) status.text = "Download failed. Check the Quest's Wi-Fi and try again."
+                    else if (!Updater.install(this, file)) status.text = "Allow Casnt to install apps (the settings page just opened), then tap Download & install again."
+                    else status.text = "Confirm the install on the popup."
+                }
+            }
+        })
+        c.add(r, top = 20)
+        c.add(kit.label("Tip: with the Quest plugged in, Casnt on your PC can also update it (Settings → Updates).", 14f, kit.look.faint), top = 14)
+        place(c)
     }
 
     // ------------------------------------------------------------------ TikTok LIVE
@@ -522,7 +679,7 @@ class MainActivity : Activity() {
     private fun checkTikTok() {
         val pcs = prefs.pcs()
         val pc = pcs.firstOrNull { it.pcId == prefs.lastPcId } ?: pcs.firstOrNull()
-        if (pc == null) { showHome("Pair a PC first — TikTok LIVE Studio runs on your PC."); return }
+        if (pc == null) { showHome("Pair a PC first. TikTok LIVE Studio runs on your PC."); return }
         val myJob = ++job
         showWaiting("Checking ${pc.pcName} for TikTok LIVE Studio…")
         bg {
@@ -560,6 +717,3 @@ class MainActivity : Activity() {
         private const val REQ_NOTIFY = 43
     }
 }
-
-/** Version label without needing the generated BuildConfig class. */
-object BuildConfigLite { const val VERSION = "0.1.0" }

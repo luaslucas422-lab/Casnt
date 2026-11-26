@@ -20,6 +20,7 @@
     <div class="row">
       <button class="btn" id="yes">Accept</button>
       <button class="btn dark" id="no">Decline</button>
+      <span class="hint" id="left"></span>
     </div>
   </div>
 <script>
@@ -29,6 +30,21 @@
   document.getElementById('mode').textContent = q.get('mode') === 'app' ? 'They want to share just one app.' : 'They want to share everything they see.';
   document.getElementById('yes').onclick = () => window.casnt.respondCast(true);
   document.getElementById('no').onclick = () => window.casnt.respondCast(false);
+  let left = Number(q.get('timeout') || 60);
+  const tick = () => { document.getElementById('left').textContent = `Auto-declines in ${left}s`; left = Math.max(0, left - 1); };
+  tick(); setInterval(tick, 1000);
+  if (q.get('sounds') !== 'false') {
+    try {
+      const a = new AudioContext();
+      [880, 1175].forEach((f, i) => {
+        const o = a.createOscillator(), g = a.createGain();
+        o.type = 'triangle'; o.frequency.value = f;
+        g.gain.setValueAtTime(0.15, a.currentTime + i * 0.13);
+        g.gain.exponentialRampToValueAtTime(0.001, a.currentTime + i * 0.13 + 0.18);
+        o.connect(g).connect(a.destination); o.start(a.currentTime + i * 0.13); o.stop(a.currentTime + i * 0.13 + 0.2);
+      });
+    } catch (_) {}
+  }
 </script>
 </body>
 </html>

@@ -2,7 +2,7 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 const CHANNELS = ['code', 'paired', 'devices', 'cast-request', 'cast-request-cancelled', 'cast-accepted',
-  'cast-started', 'cast-ended', 'video-config', 'video', 'audio', 'usb'];
+  'cast-started', 'cast-ended', 'video-config', 'video', 'audio', 'usb', 'ping', 'quest-status', 'rec-saved', 'update'];
 
 contextBridge.exposeInMainWorld('casnt', {
   on(channel, cb) {
@@ -19,4 +19,14 @@ contextBridge.exposeInMainWorld('casnt', {
   fullscreen: (on) => ipcRenderer.invoke('fullscreen', on),
   tiktokCheck: () => ipcRenderer.invoke('tiktok-check'),
   openUrl: (u) => ipcRenderer.invoke('open-url', u),
+  resetSettings: () => ipcRenderer.invoke('reset-settings'),
+  qualityInfo: () => ipcRenderer.invoke('quality-info'),
+  setQuestAudio: (a) => ipcRenderer.invoke('set-quest-audio', a),
+  pickRecordFolder: () => ipcRenderer.invoke('pick-record-folder'),
+  recStart: () => ipcRenderer.invoke('rec-start'),
+  recChunk: (buf) => ipcRenderer.send('rec-chunk', buf),
+  recStop: () => ipcRenderer.invoke('rec-stop'),
+  openRecordings: () => ipcRenderer.invoke('open-recordings'),
+  updateCheck: () => ipcRenderer.invoke('update-check'),
+  updateQuest: () => ipcRenderer.invoke('update-quest'),
 });

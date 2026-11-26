@@ -4,26 +4,35 @@ plugins {
 }
 
 android {
-    namespace = "com.darkerdawnfr.casnt"
+    namespace = "com.calmchasm.casnt"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.darkerdawnfr.casnt"
+        applicationId = "com.calmchasm.casnt"
         minSdk = 29          // Quest 2 / 3 / 3S / Pro
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        versionCode = 2
+        versionName = "0.2.0"
     }
 
+    // A fixed key is needed so updates install over the old app. CI passes it in from the
+    // repo secrets (CASNT_KEYSTORE_B64 / CASNT_KEYSTORE_PASSWORD); without them the debug key is used.
+    val ksFile = System.getenv("CASNT_KEYSTORE")?.let { file(it) }
     signingConfigs {
-        // Sideload builds are signed with the debug key unless a release keystore is provided.
-        getByName("debug")
+        if (ksFile != null && ksFile.exists()) {
+            create("casnt") {
+                storeFile = ksFile
+                storePassword = System.getenv("CASNT_KEYSTORE_PASSWORD")
+                keyAlias = "casnt"
+                keyPassword = System.getenv("CASNT_KEYSTORE_PASSWORD")
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.findByName("casnt") ?: signingConfigs.getByName("debug")
         }
     }
     compileOptions {
