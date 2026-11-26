@@ -1,4 +1,4 @@
-package com.darkerdawnfr.casnt
+package com.calmchasm.casnt
 
 import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
@@ -61,7 +61,7 @@ class OutlineText(ctx: Context, private val outline: Int, private val outlineWid
     }
 }
 
-class Kit(private val ctx: Context, val look: Look) {
+class Kit(private val ctx: Context, val look: Look, val animations: Boolean = true, val sounds: Boolean = true) {
 
     fun rounded(colors: IntArray, radius: Int, strokeW: Int = look.stroke): GradientDrawable =
         GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM, if (colors.size == 1) intArrayOf(colors[0], colors[0]) else colors).apply {
@@ -134,7 +134,7 @@ class Kit(private val ctx: Context, val look: Look) {
             setPadding(ctx.dp(padH), ctx.dp(padV), ctx.dp(padH), ctx.dp(padV) + s)
             isClickable = true
             isFocusable = true
-            setOnClickListener { bounce(this); onClick() }
+            setOnClickListener { bounce(this); if (sounds) Sfx.blip(); onClick() }
         }
 
     fun card(vertical: Boolean = true, pad: Int = 28): LinearLayout = LinearLayout(ctx).apply {
@@ -167,27 +167,28 @@ class Kit(private val ctx: Context, val look: Look) {
                 setTextColor(if (on) Color.BLACK else look.muted)
             }
             paint()
-            setOnClickListener { on = !on; paint(); bounce(this); onChange(on) }
+            setOnClickListener { on = !on; paint(); bounce(this); if (sounds) Sfx.blip(if (on) 880 else 520); onChange(on) }
         }
     }
 
     fun bounce(v: View) {
-        if (!look.cartoon) return
+        if (!look.cartoon || !animations) return
         v.animate().scaleX(0.94f).scaleY(0.94f).setDuration(70).withEndAction {
             v.animate().scaleX(1f).scaleY(1f).setDuration(120).start()
         }.start()
     }
 
     fun pulse(v: View) {
+        if (!animations) return
         ObjectAnimator.ofFloat(v, "alpha", 1f, 0.35f).apply {
             duration = 700; repeatMode = ValueAnimator.REVERSE; repeatCount = ValueAnimator.INFINITE; start()
         }
     }
 
     fun popIn(v: View) {
-        if (!look.cartoon) return
-        v.scaleX = 0.92f; v.scaleY = 0.92f; v.alpha = 0f
-        v.animate().scaleX(1f).scaleY(1f).alpha(1f).setDuration(220).start()
+        if (!animations) return
+        v.alpha = 0f; v.translationY = ctx.dpf(18f)
+        v.animate().alpha(1f).translationY(0f).setDuration(220).start()
     }
 }
 
@@ -197,4 +198,72 @@ fun LinearLayout.add(v: View, w: Int = LinearLayout.LayoutParams.WRAP_CONTENT, h
     lp.topMargin = (top * resources.displayMetrics.density).toInt()
     addView(v, lp)
     return v
+}
+
+/**
+ * Holds one screen and scales it down (never up) so it always fits the Quest panel.
+ * This is what stops the code pad / settings going off the bottom of the screen.
+ */
+class FitFrame(ctx: Context) : android.widget.FrameLayout(ctx) {
+    private val margin = ctx.dp(24)
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        val w = View.MeasureSpec.getSize(widthMeasureSpec)
+        val h = View.MeasureSpec.getSize(heightMeasureSpec)
+        val child = if (childCount > 0) getChildAt(0) else null
+        child?.measure(
+            View.MeasureSpec.makeMeasureSpec(maxOf(w - 2 * margin, 0), View.MeasureSpec.AT_MOST),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+        )
+        setMeasuredDimension(w, h)
+    }
+
+    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
+        val child = if (childCount > 0) getChildAt(0) else return
+        val cw = child.measuredWidth
+        val ch = child.measuredHeight
+        val left = (width - cw) / 2
+        val top = (height - ch) / 2
+        child.layout(left, top, left + cw, top + ch)
+        val s = minOf(1f, (width - 2f * margin) / maxOf(cw, 1), (height - 2f * margin) / maxOf(ch, 1))
+        child.pivotX = cw / 2f
+        child.pivotY = ch / 2f
+        child.scaleX = s
+        child.scaleY = s
+    }
+}
+
+/** Tiny cartoony "blip" sounds, generated so there are no audio files. */
+object Sfx {
+    fun blip(freq: Int = 660) {
+        Thread {
+            try {
+                val rate = 44_100
+                val n = rate * 70 / 1000
+                val pcm = ShortArray(n)
+                var phase = 0.0
+                for (i in 0 until n) {
+                    val t = i.toDouble() / n
+                    val f = freq * (1 + 0.6 * t)
+                    phase += 2 * Math.PI * f / rate
+                    val env = (1 - t) * (1 - t)
+                    pcm[i] = (Math.sin(phase) * env * 6000).toInt().toShort()
+                }
+                val track = android.media.AudioTrack.Builder()
+                    .setAudioAttributes(android.media.AudioAttributes.Builder()
+                        .setUsage(android.media.AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(android.media.AudioAttributes.CONTENT_TYPE_SONIFICATION).build())
+                    .setAudioFormat(android.media.AudioFormat.Builder()
+                        .setEncoding(android.media.AudioFormat.ENCODING_PCM_16BIT).setSampleRate(rate)
+                        .setChannelMask(android.media.AudioFormat.CHANNEL_OUT_MONO).build())
+                    .setTransferMode(android.media.AudioTrack.MODE_STATIC)
+                    .setBufferSizeInBytes(n * 2)
+                    .build()
+                track.write(pcm, 0, n)
+                track.play()
+                Thread.sleep(120)
+                track.release()
+            } catch (_: Exception) { }
+        }.start()
+    }
 }

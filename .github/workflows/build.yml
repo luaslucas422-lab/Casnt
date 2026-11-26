@@ -20,7 +20,20 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.10.2'
+      - name: Signing key (from repo secrets, if set)
+        env:
+          KS_B64: ${{ secrets.CASNT_KEYSTORE_B64 }}
+        run: |
+          if [ -n "$KS_B64" ]; then
+            echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/casnt.jks"
+            echo "CASNT_KEYSTORE=$RUNNER_TEMP/casnt.jks" >> "$GITHUB_ENV"
+            echo "Using the Casnt release key"
+          else
+            echo "::warning::CASNT_KEYSTORE_B64 secret not set - APK is signed with a throwaway debug key, so in-app updates can't install over it."
+          fi
       - name: Build APK
+        env:
+          CASNT_KEYSTORE_PASSWORD: ${{ secrets.CASNT_KEYSTORE_PASSWORD }}
         run: gradle -p quest assembleRelease --no-daemon --stacktrace
       - name: Rename APK
         run: cp quest/app/build/outputs/apk/release/app-release.apk Casnt-Quest.apk
@@ -42,6 +55,13 @@ jobs:
           node-version: '20'
       - run: npm ci
       - run: npm test
+      - name: Bundle adb (for USB)
+        shell: pwsh
+        run: |
+          Invoke-WebRequest https://dl.google.com/android/repository/platform-tools-latest-windows.zip -OutFile pt.zip
+          Expand-Archive pt.zip -DestinationPath pt
+          New-Item -ItemType Directory -Force vendor/adb | Out-Null
+          Copy-Item pt/platform-tools/adb.exe, pt/platform-tools/AdbWinApi.dll, pt/platform-tools/AdbWinUsbApi.dll vendor/adb/
       - name: Build installer + portable exe
         run: npx electron-builder --win nsis portable --publish never
       - uses: actions/upload-artifact@v4
@@ -49,6 +69,8 @@ jobs:
           name: Casnt-Windows
           path: |
             pc/dist/*.exe
+            pc/dist/*.blockmap
+            pc/dist/latest.yml
 
   release:
     name: Publish release
@@ -74,7 +96,9 @@ jobs:
           make_latest: true
           body: |
             **Quest 3:** sideload `Casnt-Quest.apk` (SideQuest or `adb install`).
-            **PC:** run `Casnt Setup ${{ steps.ver.outputs.version }}.exe` (or the portable exe).
+            **PC:** run `Casnt-Setup-${{ steps.ver.outputs.version }}.exe` (or the portable exe). The installed app updates itself from here.
           files: |
             out/Casnt-Quest-APK/*.apk
             out/Casnt-Windows/*.exe
+            out/Casnt-Windows/*.blockmap
+            out/Casnt-Windows/latest.yml

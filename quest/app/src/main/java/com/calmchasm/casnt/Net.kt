@@ -1,4 +1,4 @@
-package com.darkerdawnfr.casnt
+package com.calmchasm.casnt
 
 import android.os.Build
 import org.json.JSONObject
@@ -125,7 +125,7 @@ class Link private constructor(val host: String, val port: Int, private val sock
 
     companion object {
         private const val MAX_QUEUED_BYTES = 6L * 1024 * 1024
-        private val ASYNC = setOf("cast_stop", "key_request", "unpaired")
+        private val ASYNC = setOf("cast_stop", "key_request", "unpaired", "set_quality", "set_audio", "ping")
 
         fun open(host: String, port: Int = Proto.PORT, timeoutMs: Int = 2500): Link {
             val s = Socket()
@@ -229,6 +229,34 @@ object Connector {
             }
             "auth_fail" -> { link.close(); Result.Forgotten }
             else -> { link.close(); null }
+        }
+    }
+}
+
+/** USB instant connect: if the Quest is plugged into a Casnt PC (adb reverse), pair with no code. */
+object UsbConnect {
+    sealed class Result {
+        data class NewlyPaired(val pc: SavedPc) : Result()
+        data class AlreadyPaired(val pc: SavedPc) : Result()
+        object NoUsb : Result()
+        object TurnedOffOnPc : Result()
+    }
+
+    fun check(prefs: Prefs): Result {
+        val (link, hello) = Link.handshake(Proto.USB_HOST, Proto.PORT, prefs, 500) ?: return Result.NoUsb
+        try {
+            val pcId = hello.optString("pcId")
+            prefs.pcs().firstOrNull { it.pcId == pcId }?.let { return Result.AlreadyPaired(it) }
+            link.send(JSONObject().put("t", "usb_pair"))
+            val r = link.await(setOf("paired", "pair_fail"), 3000L) ?: return Result.NoUsb
+            if (r.optString("t") != "paired") return Result.TurnedOffOnPc
+            val pc = SavedPc(r.optString("pcId", pcId), r.optString("pcName", hello.optString("pcName")),
+                r.getString("token"), Proto.USB_HOST, Proto.PORT)
+            prefs.savePc(pc)
+            prefs.lastPcId = pc.pcId
+            return Result.NewlyPaired(pc)
+        } finally {
+            link.close()
         }
     }
 }

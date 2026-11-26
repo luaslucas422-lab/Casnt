@@ -147,3 +147,74 @@ test('pairing locks out after too many wrong codes', async () => {
     q.close();
   } finally { server.stop(); }
 });
+
+test('USB instant connect pairs without a code, and can be turned off', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'casnt-'));
+  const store = new Store(path.join(dir, 's.json'));
+  const server = new CasntServer({ store, pcName: 'USB-PC', port: 0, discoveryPort: 0 });
+  await server.start();
+  try {
+    const q = fakeQuest(server.port); // 127.0.0.1 == what adb reverse looks like
+    q.send({ t: 'hello', deviceId: 'usb-q', name: 'Lucas', model: 'Meta Quest 3' });
+    await q.wait('hello');
+    q.send({ t: 'usb_pair' });
+    const p = await q.wait('paired');
+    assert.equal(p.via, 'usb');
+    assert.equal(p.pcName, 'USB-PC');
+    assert.ok(store.checkToken('usb-q', p.token));
+    q.close();
+
+    store.setSetting('usbInstantConnect', false);
+    const q2 = fakeQuest(server.port);
+    q2.send({ t: 'hello', deviceId: 'usb-q2', name: 'X', model: 'Meta Quest 3' });
+    await q2.wait('hello');
+    q2.send({ t: 'usb_pair' });
+    assert.equal((await q2.wait('pair_fail')).reason, 'usb_off');
+    q2.close();
+  } finally { server.stop(); }
+});
+
+test('live quality, audio, ping and Quest status while casting', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'casnt-'));
+  const store = new Store(path.join(dir, 's.json'));
+  const server = new CasntServer({ store, pcName: 'PC', port: 0, discoveryPort: 0,
+    specFor: (pref) => ({ preset: pref === 'pc' ? 'medium' : pref, width: 1280, height: 720, fps: 60, bitrate: 8e6 }) });
+  await server.start();
+  try {
+    const q = fakeQuest(server.port);
+    q.send({ t: 'hello', deviceId: 'd', name: 'L', model: 'Meta Quest 3' });
+    await q.wait('hello');
+    q.send({ t: 'usb_pair' }); await q.wait('paired');
+    const req = once(server, 'cast-request');
+    q.send({ t: 'cast_request', mode: 'everything', quality: 'potato' });
+    server.respondCast((await req).sessionId, true);
+    const acc = await q.wait('cast_accept');
+    assert.equal(acc.spec.preset, 'potato', 'Quest-picked quality wins');
+
+    server.setQuality({ preset: 'good', width: 2560, height: 1440, fps: 60, bitrate: 2e7 });
+    assert.equal((await q.wait('set_quality')).spec.height, 1440);
+    server.setAudio({ game: false, mic: true });
+    const a = await q.wait('set_audio');
+    assert.equal(a.game, false); assert.equal(a.mic, true);
+
+    const ping = await q.wait('ping'); // PC pings every 2 s while casting
+    const pingEv = once(server, 'ping');
+    q.send({ t: 'pong', ts: ping.ts });
+    assert.ok((await pingEv).ms >= 0);
+
+    const stEv = once(server, 'quest-status');
+    q.send({ t: 'status', battery: 81, charging: true, game: false, mic: true, spec: { height: 1440, fps: 60 } });
+    const st = await stEv;
+    assert.equal(st.battery, 81); assert.equal(st.game, false);
+    q.close();
+  } finally { server.stop(); }
+});
+
+test('quality presets', () => {
+  const Q = require('../src/quality');
+  assert.equal(Q.specFor('good', { goodMode: 'set' }).height, 1440);
+  assert.equal(Q.specFor('good', { goodMode: 'max' }).height, 2160);
+  const c = Q.specFor('custom', { custom: { height: 1080, fps: 90, mbps: 30 } });
+  assert.deepEqual([c.width, c.height, c.fps, c.bitrate], [1920, 1080, 90, 30e6]);
+  assert.equal(Q.specFor('potato', {}).height, 480);
+});

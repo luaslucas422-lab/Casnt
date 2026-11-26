@@ -1,4 +1,4 @@
-package com.darkerdawnfr.casnt
+package com.calmchasm.casnt
 
 import android.content.Context
 import org.json.JSONArray
@@ -44,6 +44,40 @@ class Prefs(context: Context) {
     var plainTheme: String
         get() = sp.getString("plainTheme", "dark") ?: "dark"
         set(v) = sp.edit().putString("plainTheme", v).apply()
+
+    var animations: Boolean
+        get() = sp.getBoolean("animations", true)
+        set(v) = sp.edit().putBoolean("animations", v).apply()
+
+    var sounds: Boolean
+        get() = sp.getBoolean("sounds", true)
+        set(v) = sp.edit().putBoolean("sounds", v).apply()
+
+    /** "ask", "everything" or "app" — what Cast to PC shares by default. */
+    var defaultMode: String
+        get() = sp.getString("defaultMode", "ask") ?: "ask"
+        set(v) = sp.edit().putString("defaultMode", v).apply()
+
+    /** "pc" (use the PC's setting), "potato", "medium", "good" or "max". */
+    var startQuality: String
+        get() = sp.getString("startQuality", "pc") ?: "pc"
+        set(v) = sp.edit().putString("startQuality", v).apply()
+
+    var micOnStart: Boolean
+        get() = sp.getBoolean("micOnStart", true)
+        set(v) = sp.edit().putBoolean("micOnStart", v).apply()
+
+    var gameOnStart: Boolean
+        get() = sp.getBoolean("gameOnStart", true)
+        set(v) = sp.edit().putBoolean("gameOnStart", v).apply()
+
+    var usbInstantConnect: Boolean
+        get() = sp.getBoolean("usbInstantConnect", true)
+        set(v) = sp.edit().putBoolean("usbInstantConnect", v).apply()
+
+    var autoUpdateCheck: Boolean
+        get() = sp.getBoolean("autoUpdateCheck", true)
+        set(v) = sp.edit().putBoolean("autoUpdateCheck", v).apply()
 
     var lastPcId: String
         get() = sp.getString("lastPcId", "") ?: ""

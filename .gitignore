@@ -7,3 +7,5 @@ quest/local.properties
 *.keystore
 *.jks
 .DS_Store
+pc/vendor/adb/*.exe
+pc/vendor/adb/*.dll

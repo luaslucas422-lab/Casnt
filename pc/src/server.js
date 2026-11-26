@@ -8,10 +8,14 @@ const P = require('./protocol');
 
 const CODE_LIFETIME_MS = 10 * 60 * 1000;
 const MAX_CODE_TRIES = 5;
-const CAST_REQUEST_TIMEOUT_MS = 60 * 1000;
+const PING_EVERY_MS = 2000;
+
+function isLoopback(addr) {
+  return addr === '127.0.0.1' || addr === '::1' || addr === '::ffff:127.0.0.1';
+}
 
 class CasntServer extends EventEmitter {
-  constructor({ store, pcName, port = P.PORT, discoveryPort = P.DISCOVERY_PORT }) {
+  constructor({ store, pcName, port = P.PORT, discoveryPort = P.DISCOVERY_PORT, specFor }) {
     super();
     this.store = store;
     this.pcName = pcName;
@@ -19,7 +23,9 @@ class CasntServer extends EventEmitter {
     this.discoveryPort = discoveryPort;
     this.sessions = new Map(); // id -> session
     this.castSession = null;   // session currently casting
-    this.pendingCast = null;   // { session, timer }
+    this.pendingCast = null;   // { session, timer, mode, questQuality }
+    this.specFor = specFor || (() => ({ preset: 'good', width: 2560, height: 1440, fps: 60, bitrate: 20000000 }));
+    this.pingTimer = null;
     this.newCode();
   }
 
@@ -50,6 +56,7 @@ class CasntServer extends EventEmitter {
 
   stop() {
     clearTimeout(this.codeTimer);
+    this.stopPings();
     for (const s of this.sessions.values()) s.sock.destroy();
     if (this.udp) try { this.udp.close(); } catch (_) {}
     if (this.tcp) this.tcp.close();
@@ -87,6 +94,7 @@ class CasntServer extends EventEmitter {
     }
     if (this.castSession === session) {
       this.castSession = null;
+      this.stopPings();
       this.emit('cast-ended', { reason: 'disconnected' });
     }
   }
@@ -151,6 +159,19 @@ class CasntServer extends EventEmitter {
         break;
       }
       case 'pair_cancel': session.pendingPair = false; break;
+      case 'usb_pair': {
+        // Only for links that come in through the USB cable (adb reverse => loopback).
+        if (!session.device || !session.device.deviceId) return;
+        if (!isLoopback(session.address) || !this.store.settings.usbInstantConnect) {
+          this.send(session, { t: 'pair_fail', reason: 'usb_off' });
+          return;
+        }
+        const token = this.store.addDevice(session.device);
+        session.authed = true;
+        this.send(session, { t: 'paired', token, pcName: this.pcName, pcId: this.store.pcId, via: 'usb' });
+        this.emit('paired', { ...session.device, via: 'usb' });
+        break;
+      }
       case 'auth': {
         if (!session.device) return;
         const d = this.store.checkToken(session.device.deviceId, msg.token);
@@ -165,6 +186,9 @@ class CasntServer extends EventEmitter {
         break;
       }
       case 'ping': this.send(session, { t: 'pong', ts: msg.ts }); break;
+      case 'pong':
+        if (this.castSession === session && typeof msg.ts === 'number') this.emit('ping', { ms: Date.now() - msg.ts });
+        break;
       default:
         if (session.authed) this.onAuthedMessage(session, msg);
     }
@@ -175,14 +199,24 @@ class CasntServer extends EventEmitter {
       case 'cast_request': {
         if (this.castSession || this.pendingCast) { this.send(session, { t: 'cast_decline', reason: 'busy' }); return; }
         const mode = msg.mode === 'app' ? 'app' : 'everything';
-        const timer = setTimeout(() => this.respondCast(session.id, false, 'timeout'), CAST_REQUEST_TIMEOUT_MS);
-        this.pendingCast = { session, timer, mode };
-        this.emit('cast-request', { sessionId: session.id, device: { ...session.device }, mode });
+        const questQuality = ['potato', 'medium', 'good', 'max'].includes(msg.quality) ? msg.quality : 'pc';
+        const timeoutMs = Math.max(10, Number(this.store.settings.requestTimeout) || 60) * 1000;
+        const timer = setTimeout(() => this.respondCast(session.id, false, 'timeout'), timeoutMs);
+        this.pendingCast = { session, timer, mode, questQuality };
+        this.emit('cast-request', { sessionId: session.id, device: { ...session.device }, mode, timeoutMs });
         break;
       }
       case 'cast_started': this.emit('cast-started', { width: msg.width, height: msg.height, fps: msg.fps }); break;
       case 'cast_stop':
-        if (this.castSession === session) { this.castSession = null; this.emit('cast-ended', { reason: 'quest' }); }
+        if (this.castSession === session) { this.castSession = null; this.stopPings(); this.emit('cast-ended', { reason: 'quest' }); }
+        break;
+      case 'status':
+        if (this.castSession === session) {
+          this.emit('quest-status', {
+            battery: Number.isFinite(msg.battery) ? msg.battery : null, charging: !!msg.charging,
+            spec: msg.spec || null, game: msg.game !== false, mic: msg.mic !== false,
+          });
+        }
         break;
       case 'tiktok_check': this.emit('tiktok-check', { sessionId: session.id }); break;
       default: break;
@@ -197,8 +231,10 @@ class CasntServer extends EventEmitter {
     this.pendingCast = null;
     if (accept) {
       this.castSession = pending.session;
-      this.send(pending.session, { t: 'cast_accept', quality: 'good' });
-      this.emit('cast-accepted', { device: { ...pending.session.device }, mode: pending.mode });
+      const spec = this.specFor(pending.questQuality);
+      this.send(pending.session, { t: 'cast_accept', quality: spec.preset, spec });
+      this.startPings();
+      this.emit('cast-accepted', { device: { ...pending.session.device }, mode: pending.mode, spec });
     } else {
       this.send(pending.session, { t: 'cast_decline', reason: reason || 'declined' });
       this.emit('cast-request-cancelled', { sessionId });
@@ -206,10 +242,31 @@ class CasntServer extends EventEmitter {
     return true;
   }
 
+  startPings() {
+    this.stopPings();
+    this.pingTimer = setInterval(() => {
+      if (this.castSession) this.send(this.castSession, { t: 'ping', ts: Date.now() });
+    }, PING_EVERY_MS);
+    if (this.pingTimer.unref) this.pingTimer.unref();
+  }
+
+  stopPings() { clearInterval(this.pingTimer); this.pingTimer = null; }
+
+  /** Change quality while casting. */
+  setQuality(spec) {
+    if (this.castSession) this.send(this.castSession, { t: 'set_quality', spec });
+  }
+
+  /** Turn the Quest's game audio / mic capture on or off while casting. */
+  setAudio({ game, mic }) {
+    if (this.castSession) this.send(this.castSession, { t: 'set_audio', game: !!game, mic: !!mic });
+  }
+
   stopCast() {
     const s = this.castSession;
     if (!s) return;
     this.castSession = null;
+    this.stopPings();
     this.send(s, { t: 'cast_stop' });
     this.emit('cast-ended', { reason: 'pc' });
   }
