@@ -1,0 +1,68 @@
+name: Build Casnt
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  quest-apk:
+    name: Quest 3 APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Build APK
+        run: gradle -p quest assembleRelease --no-daemon --stacktrace
+      - name: Rename APK
+        run: cp quest/app/build/outputs/apk/release/app-release.apk Casnt-Quest.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Casnt-Quest-APK
+          path: Casnt-Quest.apk
+
+  pc-windows:
+    name: Windows PC app
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: pc
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: npm ci
+      - run: npm test
+      - name: Build installer + portable exe
+        run: npx electron-builder --win nsis portable --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Casnt-Windows
+          path: |
+            pc/dist/*.exe
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [quest-apk, pc-windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            out/Casnt-Quest-APK/*.apk
+            out/Casnt-Windows/*.exe

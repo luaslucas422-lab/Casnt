@@ -1,0 +1,9 @@
+node_modules/
+pc/dist/
+quest/.gradle/
+quest/build/
+quest/app/build/
+quest/local.properties
+*.keystore
+*.jks
+.DS_Store

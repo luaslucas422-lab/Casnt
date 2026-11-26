@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+  <title>Casnt</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<div id="app">
+  <nav>
+    <div class="brand"><img src="../../build/icon.png" alt=""><span class="wordmark">Casnt</span></div>
+    <button class="nav-btn active" data-go="home"><span class="ico">🏠</span>Home</button>
+    <button class="nav-btn" data-go="tiktok">
+      <span class="ico"><svg class="tt-logo" viewBox="0 0 26 26"><rect x="1.5" y="6" width="23" height="14" rx="7" fill="#ff2d55" stroke="#000" stroke-width="3"/><circle cx="8" cy="13" r="2.6" fill="#fff"/><path d="M12 10.5h2v5h3" stroke="#fff" stroke-width="2" fill="none"/></svg></span>TikTok LIVE</button>
+    <button class="nav-btn" data-go="settings"><span class="ico">⚙️</span>Settings</button>
+    <div class="nav-spacer"></div>
+    <div id="usb" class="badge off">USB: not plugged in</div>
+  </nav>
+
+  <main>
+    <!-- HOME -->
+    <section id="home" class="screen show">
+      <h1 class="greet" id="greet">Welcome back</h1>
+      <p class="sub" id="pcname"></p>
+      <div class="grid">
+        <div class="card">
+          <h2>Pair a Quest</h2>
+          <div class="hint">On your Quest, open <b>Casnt</b> → <b>Add PC</b> and type this code.</div>
+          <div class="code" id="code"></div>
+          <div class="row">
+            <button class="btn small dark" id="newcode">New code</button>
+            <span class="timer" id="codetimer"></span>
+          </div>
+        </div>
+        <div class="card">
+          <h2>Your Quests</h2>
+          <ul class="devices" id="devices"></ul>
+        </div>
+      </div>
+      <div class="card ready">
+        <div class="pulse"></div>
+        <div>
+          <b>Ready to receive</b>
+          <div class="hint">Press <b>Cast to PC</b> on your Quest. Even if you close this window, Casnt keeps waiting in the tray and will pop up when your Quest asks to cast.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TIKTOK -->
+    <section id="tiktok" class="screen">
+      <h1 class="greet">TikTok LIVE</h1>
+      <div class="card" id="tt-ask" style="max-width:620px">
+        <h2>Do you have TikTok LIVE Studio installed?</h2>
+        <ul class="req-list">
+          <li>Windows 10 or 11 (64-bit)</li>
+          <li>A TikTok account with LIVE access (TikTok decides who gets LIVE Studio)</li>
+          <li>A steady upload connection — around 6 Mbps or more for 1080p</li>
+        </ul>
+        <div class="row">
+          <button class="btn" id="tt-confirm">Confirm</button>
+          <button class="btn dark" id="tt-cancel">Cancel</button>
+        </div>
+      </div>
+      <div class="card" id="tt-result" style="max-width:620px; display:none"></div>
+    </section>
+
+    <!-- SETTINGS -->
+    <section id="settings" class="screen">
+      <h1 class="greet">Settings</h1>
+      <div class="card" style="max-width:720px">
+        <div class="setting"><div><b>Show greeting</b><small>"Good evening, PC name" on the home screen</small></div>
+          <label class="toggle"><input type="checkbox" data-setting="showGreeting"><span></span></label></div>
+        <div class="setting"><div><b>Cartoony gold look</b><small>Turn off for a clean look</small></div>
+          <label class="toggle"><input type="checkbox" data-setting="cartoonUi"><span></span></label></div>
+        <div class="setting" id="plainrow"><div><b>Clean look colour</b><small>Used when the cartoony look is off</small></div>
+          <select data-setting="plainTheme"><option value="dark">Clean dark</option><option value="light">Clean light</option></select></div>
+        <div class="setting"><div><b>Start with Windows</b><small>Keeps Casnt in the tray so your Quest can cast any time</small></div>
+          <label class="toggle"><input type="checkbox" data-setting="startWithWindows"><span></span></label></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- cast request (when the window is open) -->
+<div id="request">
+  <h2 style="margin:0 0 6px" class="wordmark" id="req-title">Cast request</h2>
+  <div class="hint" id="req-text"></div>
+  <div class="row" style="margin-top:16px">
+    <button class="btn" id="req-yes">Accept</button>
+    <button class="btn dark" id="req-no">Decline</button>
+  </div>
+</div>
+
+<!-- cast view -->
+<div id="cast">
+  <canvas id="screen"></canvas>
+  <div class="waiting" id="castwait">Starting the cast…<br><span class="hint" style="font-family:var(--body-font);font-size:16px">Confirm the share prompt on your Quest</span></div>
+  <div id="castbar">
+    <span class="who" id="castwho"></span>
+    <button class="btn small" id="b-game">🎮 Game audio</button>
+    <button class="btn small" id="b-mic">🎙️ Mic</button>
+    <button class="btn small dark" id="b-full">⛶ Fullscreen</button>
+    <button class="btn small red" id="b-stop">Stop</button>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>
